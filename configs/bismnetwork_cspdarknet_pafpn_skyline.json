@@ -1,0 +1,73 @@
+{
+    "train_dataset" : {
+        "path" : "/home/yanggang/PyCharmWorkspace/BISMNetwork/data/bismskyline/train",
+        "train": true,
+        "batch_size": 16,
+        "img_size": [1024, 64],
+        "shuffle": true,
+        "num_worker": 8,
+        "augment" :{
+            "enable": true,
+            "mosaic": {"enable":  true, "posible" : 0.4},
+            "hsv_augment": {
+                "enable":true,
+                "posible": 0.5,
+                "h": 0.015,
+                "s": 0.7,
+                "v": 0.4
+            },
+            "mixup": {"enable":  true, "posible" : 0.4}
+        }
+    },
+    "model": {
+        "backbone":{
+            "type": "CSPDarknet",
+            "cfg":{
+                "depth_multiple": 0.67,
+                "width_multiple": 0.75,
+                "ch": 3,
+                "nc": 1
+            }
+        },
+        "neck": {
+            "type": "PAFPN",
+            "cfg": {
+                "depth_multiple": 0.67,
+                "width_multiple": 0.75,
+                "ch": [192,384,768],
+                "nc": 1
+            }
+        },
+        "head": {
+            "type": "DenseHead",
+            "cfg": {
+                "ch": [192,384,768]
+            }
+        }
+    },
+
+    "train_cfg": {
+        "save_dir": "./weight/",
+        "weights": "",
+        "epoch": 500,
+        "device": "cuda",
+        "resume": true,
+        "stride": 8,
+        "obj_pw": 0.911,
+        "obj_weight": 0.5,
+        "predy_weight": 1.0,
+        "pretrained": null,
+        "optimizer": {
+            "type" : "Adam",
+            "lr": 0.01,
+            "momentum": 0.937,
+            "weight_decay": 0.0005
+        },
+        "scheduler": {
+            "lrf": 0.2
+        }
+    }
+}
+
+
+
