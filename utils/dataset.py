@@ -19,7 +19,7 @@ from tqdm import tqdm
 from utils.general import letterbox
 from utils.augmentation import mosaic,augment_hsv, mixup
 
-def create_dataloader(path, img_size, batch_size, augment=True, shuffle=True, train=True,num_worker=8):
+def create_dataloader(path, img_size, batch_size, augment, shuffle=True, train=True,num_worker=8):
     loader = DataLoader(
         dataset=BISMDataset(path,train,img_size, batch_size, augment),
         batch_size=batch_size,
@@ -27,6 +27,12 @@ def create_dataloader(path, img_size, batch_size, augment=True, shuffle=True, tr
         num_workers=num_worker,
         pin_memory=False,
         collate_fn=collate_fn
+    ) if train else DataLoader(
+        dataset=BISMValDataset(path, img_size, 1),
+        batch_size=1 ,
+        shuffle = False,
+        num_workers=0,
+        pin_memory=False,
     )
     return loader
 
@@ -141,6 +147,64 @@ class BISMDataset(Dataset):
 
         img, ylabels = mosaic(mosaic_imgs, mosaic_ylabels, source_img, source_ylabel,(1024, 64, 3), index)
         return img, ylabels
+
+class BISMValDataset(Dataset):
+    def __init__(self, path, img_size, batch_size=1, augment=None, resize=False):
+        super(BISMValDataset, self).__init__()
+        self.img_size = img_size
+        self.batch_size = batch_size
+        self.augment = augment
+        self.path = path
+        self.resize = resize
+        self.imgfiles, self.labelfiles = glob.glob(path + '/images/*.*'), glob.glob(path + '/labels/*.*')
+        assert len(self.imgfiles) == len(self.labelfiles)
+        self.nLength = len(self.imgfiles)
+        self.indices = range(0, self.nLength)
+
+    def __len__(self):
+        return self.nLength
+
+    def __getitem__(self, index):
+        index = self.indices[index]
+        img_path, labelpath= get_image_label_path(self.imgfiles[index])
+        assert labelpath in self.labelfiles
+        img, labels = load_image_label(img_path, labelpath)  # whole image and labels
+        #img, ylabels = letterbox(img, labels, img_size=self.img_size, )
+        h, w, c = img.shape
+        nbar = w // self.img_size[1]
+        padding_left, padding_right = round((w-nbar * self.img_size[1]) / 2 - 0.1),round((w - nbar * self.img_size[1]) / 2 + 0.1)
+
+        img = cv2.copyMakeBorder(img, 0, 0, padding_left, padding_right, cv2.BORDER_CONSTANT, (114,114,114))
+        labels[:, 0] += padding_left
+        if h < self.img_size[0]:
+            padding_top, padding_bottom = round((self.img_size[0] - h) / 2 - 0.1), round((self.img_size[0] - h) / 2 + 0.1)
+            img = cv2.copyMakeBorder(img, padding_top, padding_bottom, 0, 0, cv2.BORDER_CONSTANT, (114,114,114))
+            labels[:,1] += padding_top
+        elif self.resize and h >= self.img_size[0]:
+            r = h / self.img_size[0]
+            img = cv2.resize(img, dsize=(img.shape[1], self.img_size[0]), interpolation=cv2.INTER_LINEAR)
+            labels[:,1] = labels[:,1] / r
+        elif (not self.resize) and (h >= self.img_size[0]):
+            #h0 = img.shape[0]
+            cut_top, cut_bottom = round((h - self.img_size[0]) / 2 - 0.1), round((h - self.img_size[0]) / 2 + 0.1)
+            img = img[cut_top: cut_top + self.img_size[0], :, :]
+            labels[:,1] = labels[:, 1] - cut_top
+        imgs = []
+        for label in labels:
+            x, y = label[0], label[1]
+            imgs.append(img[:, x - self.img_size[1]//2 : x + self.img_size[1]//2, :])
+        imgs = np.stack(imgs, 0)
+
+        imgs = np.ascontiguousarray(imgs)
+        labels = np.ascontiguousarray(labels)
+
+        if h < self.img_size[0]:
+            return imgs, labels, [padding_left,  padding_right, padding_top, padding_bottom]
+        elif self.resize and h >= self.img_size[0]:
+            return imgs, labels, [padding_left, padding_right, r]
+        elif (not self.resize) and (h >= self.img_size[0]):
+            return imgs, labels, [padding_left, padding_right, -1 * cut_top, -1 * cut_bottom]
+
 
 if __name__ == '__main__':
     #dataset = BISMDataLoader('/home/yanggang/PyCharmWorkspace/BISMNetwork/data/bismskyline')

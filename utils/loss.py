@@ -90,9 +90,7 @@ class ComputeLoss:
             yi = ys.long()
             n = torch.BoolTensor([False]*grid_size)
             n = n.cuda() if self.device == 'cuda' else n.cpu()
-
             n[yi] = True
-
             #print(target_obj[b.long()])
             try:
                 target_obj[b.long(), n] = 1.0
