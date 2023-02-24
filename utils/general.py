@@ -57,8 +57,10 @@ def letterbox(image, labels, img_size=(1024, 64), color=(114,114,114), resize=Tr
         im = cv2.resize(img, dsize=(w0, h0), interpolation=cv2.INTER_LINEAR)
         yl = yl / r
     else:
-        im = img
-    h, w, c = im.shape
+        cut_top, cut_bottom = round((h - img_size[0]) / 2 - 0.1), round((h - img_size[0]) / 2 + 0.1)
+        im = img[cut_top: cut_top + img_size[0], :, :]
+        yl = yl - cut_top
+
     return im,  yl, h, w
 
 def increment_path(path, exist_ok=False, sep='', mkdir=False):
